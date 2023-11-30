@@ -1,0 +1,14 @@
+input=$1
+onnx_prefix=${input%.*}
+
+echo python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}.onnx --input_name image --input_shape $2,3,640,640
+python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}.onnx --input_name image --input_shape $2,3,640,640
+
+echo python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2.onnx --input_name im_shape --input_shape $2,2
+python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2.onnx --input_name im_shape --input_shape $2,2
+
+echo python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2_bs$2.onnx --input_name scale_factor --input_shape $2,2
+python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2_bs$2.onnx --input_name scale_factor --input_shape $2,2
+
+rm -rf ${onnx_prefix}_bs$2.onnx ${onnx_prefix}_bs$2_bs$2.onnx
+mv ${onnx_prefix}_bs$2_bs$2_bs$2.onnx ${onnx_prefix}_bs$2.onnx

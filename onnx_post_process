@@ -1,0 +1,46 @@
+input=$1
+onnx_prefix=${input%.*}
+# Step1、动态batch转静态batch 
+#	$2 = batch_size
+echo python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}.onnx --input_name image --input_shape $2,3,640,640
+python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}.onnx --input_name image --input_shape $2,3,640,640
+
+echo python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2.onnx --input_name im_shape --input_shape $2,2
+python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2.onnx --input_name im_shape --input_shape $2,2
+
+echo python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2_bs$2.onnx --input_name scale_factor --input_shape $2,2
+python make_onnx_dynamic_shape_to_fixed.py  --onnx_path ${onnx_prefix}_bs$2_bs$2.onnx --input_name scale_factor --input_shape $2,2
+
+rm -rf ${onnx_prefix}_bs$2.onnx ${onnx_prefix}_bs$2_bs$2.onnx
+mv ${onnx_prefix}_bs$2_bs$2_bs$2.onnx ${onnx_prefix}_bs$2.onnx
+
+# Step2、提取子模型 
+#	$3 = Step1得到的模型头部Div节点的的输出名, 
+#	$4 = Step1得到的模型头部Concat节点的的输出名
+echo python extract_sub_onnx.py --model ${onnx_prefix}_bs$2.onnx   --input_names 'image' $3 --output_names $4 --save_file ${onnx_prefix}_bs$2_sub.onnx
+python extract_sub_onnx.py --model ${onnx_prefix}_bs$2.onnx   --input_names 'image' $3 --output_names $4 --save_file ${onnx_prefix}_bs$2_sub.onnx
+
+# Step3、将im_shape / scale_factor 再融入到模型中 
+#	$5 = 原始onnx模型的ir_version, 
+#	$6 = 原始onnx模型的opset_version
+echo python const_node.py --batch_size $2 --ir_version $5 --opset_version $6
+python const_node.py --batch_size $2 --ir_version $5 --opset_version $6
+
+echo python onnx_merge.py --onnx_path_1 constant_img_shape_bs$2.onnx --onnx_path_1_output 'output' --onnx_path_2 ${onnx_prefix}_bs$2_sub.onnx --onnx_path_2_input $3 --save_file ${onnx_prefix}_bs$2_sub_merge.onnx
+python onnx_merge.py --onnx_path_1 constant_img_shape_bs$2.onnx --onnx_path_1_output 'output' --onnx_path_2 ${onnx_prefix}_bs$2_sub.onnx --onnx_path_2_input $3 --save_file ${onnx_prefix}_bs$2_sub_merge.onnx
+
+# Step4 
+#	$7 = total_obj_num(300)
+#	$8 = output_obj_num(50)
+echo python topK_onnx.py --batch_size $2 --total_obj_num $7 --output_obj_num $8 --opset_version $6 --save_file post_top$8.onnx
+python topK_onnx.py --batch_size $2 --total_obj_num $7 --output_obj_num $8 --opset_version $6 --save_file post_top$8.onnx
+
+echo python onnx_merge.py --onnx_path_1 ${onnx_prefix}_bs$2_sub_merge.onnx --onnx_path_1_output $4 --onnx_path_2 post_top$8.onnx --onnx_path_2_input post_input --save_file ${onnx_prefix}_bs$2_sub_merge_top$8.onnx
+python onnx_merge.py --onnx_path_1 ${onnx_prefix}_bs$2_sub_merge.onnx --onnx_path_1_output $4 --onnx_path_2 post_top$8.onnx --onnx_path_2_input post_input --save_file ${onnx_prefix}_bs$2_sub_merge_top$8.onnx
+
+echo python rename_onnx_model.py --model ${onnx_prefix}_bs$2_sub_merge_top$8.onnx --origin_names 'post_output'  --new_names 'boxes' --save_file ${onnx_prefix}_bs$2_sub_merge_top$8_final.onnx
+python rename_onnx_model.py --model ${onnx_prefix}_bs$2_sub_merge_top$8.onnx --origin_names 'post_output'  --new_names 'boxes' --save_file ${onnx_prefix}_bs$2_sub_merge_top$8_final.onnx
+
+mkdir -p ${onnx_prefix}_bs$2
+mv *onnx ${onnx_prefix}_bs$2/
+mv ${onnx_prefix}_bs$2/$1 .
