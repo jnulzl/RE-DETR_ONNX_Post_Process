@@ -39,8 +39,7 @@ echo python onnx_merge.py --onnx_path_1 ${onnx_prefix}_bs$2_sub_merge.onnx --onn
 python onnx_merge.py --onnx_path_1 ${onnx_prefix}_bs$2_sub_merge.onnx --onnx_path_1_output $4 --onnx_path_2 post_top$8.onnx --onnx_path_2_input post_input --save_file ${onnx_prefix}_bs$2_sub_merge_top$8.onnx
 
 echo python rename_onnx_model.py --model ${onnx_prefix}_bs$2_sub_merge_top$8.onnx --origin_names 'post_output'  --new_names 'boxes' --save_file ${onnx_prefix}_bs$2_sub_merge_top$8_final.onnx
-python rename_onnx_model.py --model ${onnx_prefix}_bs$2_sub_merge_top$8.onnx --origin_names 'post_output'  --new_names 'boxes' --save_file ${onnx_prefix}_bs$2_sub_merge_top$8_final.onnx
+python rename_onnx_model.py --model ${onnx_prefix}_bs$2_sub_merge_top$8.onnx --origin_names 'image' 'post_output'  --new_names 'images' 'boxes' --save_file ${onnx_prefix}_bs$2_sub_merge_top$8_final.onnx
 
 mkdir -p ${onnx_prefix}_bs$2
-mv *onnx ${onnx_prefix}_bs$2/
-mv ${onnx_prefix}_bs$2/$1 .
+mv post_top*onnx constant_img_shape_bs*onnx ${onnx_prefix}_bs*onnx ${onnx_prefix}_bs$2/
